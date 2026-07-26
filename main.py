@@ -46,7 +46,15 @@ def job_h4_structure_check():
             df = td.fetch_ohlcv(pair, TF_H4, outputsize=150)
             state = build_structure_state(df, pair)
             if state.last_event and state.last_event.kind == "CHoCH":
-                telegram_bot.send_message(f"🔎 *H4 CHoCH detected*\n{state.last_event.reason}")
+                event = state.last_event
+                swing_key = event.broken_swing.datetime if event.broken_swing else "none"
+                signature = f"{event.kind}:{event.direction}:{round(event.broken_level, 5)}:{swing_key}"
+                last_signature = trade_manager.get_last_alert_signature(pair, "H4")
+                if signature != last_signature:
+                    telegram_bot.send_message(f"🔎 *H4 CHoCH detected*\n{event.reason}")
+                    trade_manager.set_last_alert_signature(pair, "H4", signature)
+                else:
+                    print(f"  {pair}: CHoCH unchanged since last alert — skipping duplicate message")
         except td.CreditLimitError as e:
             print(f"  [SKIPPED - credit cap] {e}")
             break
