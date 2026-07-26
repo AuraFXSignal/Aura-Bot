@@ -50,6 +50,34 @@ def init_db():
             result_r REAL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS structure_alerts (
+            pair TEXT, timeframe TEXT, signature TEXT,
+            PRIMARY KEY (pair, timeframe)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def get_last_alert_signature(pair: str, timeframe: str) -> Optional[str]:
+    """Used to dedupe repeated structure alerts (e.g. H4 CHoCH) for the
+    same unresolved event, so we don't spam the channel every hour with
+    an identical message while price sits beyond a broken level."""
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT signature FROM structure_alerts WHERE pair=? AND timeframe=?", (pair, timeframe)
+    ).fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+def set_last_alert_signature(pair: str, timeframe: str, signature: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        INSERT INTO structure_alerts (pair, timeframe, signature) VALUES (?,?,?)
+        ON CONFLICT(pair, timeframe) DO UPDATE SET signature=excluded.signature
+    """, (pair, timeframe, signature))
     conn.commit()
     conn.close()
 
@@ -100,6 +128,17 @@ def get_open_trades() -> List[Trade]:
 def get_trades_since(iso_datetime: str) -> List[Trade]:
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute("SELECT * FROM trades WHERE opened_at >= ?", (iso_datetime,)).fetchall()
+    conn.close()
+    return [_row_to_trade(r) for r in rows]
+
+
+def get_trades_closed_since(iso_datetime: str) -> List[Trade]:
+    """Trades whose closed_at falls in the window — this is what daily/weekly
+    reports should use, since a trade opened days ago can still close today."""
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT * FROM trades WHERE closed_at IS NOT NULL AND closed_at >= ?", (iso_datetime,)
+    ).fetchall()
     conn.close()
     return [_row_to_trade(r) for r in rows]
 
