@@ -8,8 +8,7 @@ import telegram_bot
 
 def build_daily_report() -> dict:
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    trades_today = trade_manager.get_trades_since(today_start.isoformat())
-    closed_today = [t for t in trades_today if t.status != "open" and t.closed_at]
+    closed_today = trade_manager.get_trades_closed_since(today_start.isoformat())
     wins = [t for t in closed_today if (t.result_r or 0) > 0]
     losses = [t for t in closed_today if (t.result_r or 0) <= 0]
     open_trades = trade_manager.get_open_trades()
@@ -30,8 +29,7 @@ def build_daily_report() -> dict:
 
 def build_weekly_report() -> dict:
     week_ago = datetime.utcnow() - timedelta(days=7)
-    trades = trade_manager.get_trades_since(week_ago.isoformat())
-    closed = [t for t in trades if t.status != "open" and t.closed_at]
+    closed = trade_manager.get_trades_closed_since(week_ago.isoformat())
     wins = [t for t in closed if (t.result_r or 0) > 0]
     losses = [t for t in closed if (t.result_r or 0) <= 0]
     win_rate = (len(wins) / len(closed) * 100) if closed else 0.0
